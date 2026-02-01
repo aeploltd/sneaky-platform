@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: sneaky-postgres
+    environment:
+      POSTGRES_DB: sneaky_hosting
+      POSTGRES_USER: sneaky_admin
+      POSTGRES_PASSWORD: sneaky_secure_2024
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sneaky-database/init:/docker-entrypoint-initdb.d
+    networks:
+      - sneaky-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: sneaky-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - sneaky-network
+
+  backend:
+    build:
+      context: ./sneaky-backend
+      dockerfile: Dockerfile
+    container_name: sneaky-backend
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://sneaky_admin:sneaky_secure_2024@postgres:5432/sneaky_hosting
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production
+      PORT: 3001
+    ports:
+      - "3001:3001"
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./sneaky-backend:/app
+      - /app/node_modules
+    networks:
+      - sneaky-network
+
+  frontend:
+    build:
+      context: ./sneaky-frontend
+      dockerfile: Dockerfile
+    container_name: sneaky-frontend
+    environment:
+      REACT_APP_API_URL: http://localhost:3001
+      REACT_APP_WS_URL: ws://localhost:3001
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    volumes:
+      - ./sneaky-frontend:/app
+      - /app/node_modules
+    networks:
+      - sneaky-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  sneaky-network:
+    driver: bridge

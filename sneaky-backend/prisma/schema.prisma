@@ -1,0 +1,185 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  domain      String?
+  plan        String   @default("starter") // starter, professional, enterprise
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  servers     Server[]
+  domains     Domain[]
+  billing     Billing[]
+  deployments Deployment[]
+
+  @@map("organizations")
+}
+
+model User {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  password       String
+  firstName      String
+  lastName       String
+  role           String    @default("user") // admin, user, viewer
+  isActive       Boolean   @default(true)
+  emailVerified  Boolean   @default(false)
+  lastLoginAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+
+  sessions       Session[]
+  auditLogs      AuditLog[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model Server {
+  id             String   @id @default(cuid())
+  name           String
+  hostname       String   @unique
+  ipAddress      String
+  region         String
+  provider       String   // aws, gcp, azure, digitalocean
+  instanceType   String
+  status         String   @default("pending") // pending, running, stopped, terminated
+  cpu            Int
+  memory         Int      // in GB
+  storage        Int      // in GB
+  bandwidth      Int      // in GB
+  monthlyPrice   Decimal  @db.Decimal(10, 2)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  metrics        ServerMetric[]
+  deployments    Deployment[]
+  domains        Domain[]
+
+  @@map("servers")
+}
+
+model ServerMetric {
+  id          String   @id @default(cuid())
+  serverId    String
+  cpuUsage    Decimal  @db.Decimal(5, 2)
+  memoryUsage Decimal  @db.Decimal(5, 2)
+  diskUsage   Decimal  @db.Decimal(5, 2)
+  networkIn   Decimal  @db.Decimal(15, 2)
+  networkOut  Decimal  @db.Decimal(15, 2)
+  timestamp   DateTime @default(now())
+
+  server Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
+
+  @@map("server_metrics")
+}
+
+model Domain {
+  id             String   @id @default(cuid())
+  name           String   @unique
+  status         String   @default("pending") // pending, active, expired, suspended
+  registrar      String?
+  nameservers    String[]
+  dnsRecords     Json?
+  sslEnabled     Boolean  @default(false)
+  sslExpiry      DateTime?
+  autoRenew      Boolean  @default(true)
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  serverId String?
+  server   Server? @relation(fields: [serverId], references: [id])
+
+  @@map("domains")
+}
+
+model Deployment {
+  id          String   @id @default(cuid())
+  name        String
+  repository  String
+  branch      String   @default("main")
+  buildCommand String?
+  startCommand String?
+  envVars     Json?
+  status      String   @default("pending") // pending, building, deployed, failed
+  deployUrl   String?
+  buildLogs   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  serverId String
+  server   Server @relation(fields: [serverId], references: [id])
+
+  @@map("deployments")
+}
+
+model Billing {
+  id             String   @id @default(cuid())
+  invoiceNumber  String   @unique
+  amount         Decimal  @db.Decimal(10, 2)
+  currency       String   @default("USD")
+  status         String   @default("pending") // pending, paid, overdue, cancelled
+  dueDate        DateTime
+  paidAt         DateTime?
+  items          Json
+  stripeInvoiceId String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@map("billing")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String
+  resource  String
+  resourceId String?
+  details   Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}

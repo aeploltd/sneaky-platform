@@ -1,0 +1,75 @@
+version: '3.8'
+
+# Database server configuration
+# Deploy this on your dedicated database machine
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: sneaky-postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME:-sneaky_hosting}
+      POSTGRES_USER: ${DB_USER:-sneaky_admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-sneaky_secure_2024}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sneaky-database/init:/docker-entrypoint-initdb.d
+      - ./backups:/backups
+    networks:
+      - database-network
+    restart: unless-stopped
+    command: >
+      postgres
+      -c shared_preload_libraries=pg_stat_statements
+      -c pg_stat_statements.track=all
+      -c max_connections=200
+      -c shared_buffers=256MB
+      -c effective_cache_size=1GB
+      -c maintenance_work_mem=64MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+
+  # Database monitoring service
+  database-monitor:
+    build:
+      context: ./sneaky-database
+      dockerfile: Dockerfile
+    container_name: sneaky-db-monitor
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-sneaky_admin}:${DB_PASSWORD:-sneaky_secure_2024}@postgres:5432/${DB_NAME:-sneaky_hosting}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-sneaky_redis_2024}@${REDIS_HOST}:${REDIS_PORT:-6379}
+    depends_on:
+      - postgres
+    volumes:
+      - ./sneaky-database:/app
+      - ./logs:/app/logs
+    networks:
+      - database-network
+    restart: unless-stopped
+
+  # PostgreSQL exporter for monitoring
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter
+    container_name: postgres-exporter
+    environment:
+      DATA_SOURCE_NAME: postgresql://${DB_USER:-sneaky_admin}:${DB_PASSWORD:-sneaky_secure_2024}@postgres:5432/${DB_NAME:-sneaky_hosting}?sslmode=disable
+    ports:
+      - "9187:9187"
+    depends_on:
+      - postgres
+    networks:
+      - database-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  database-network:
+    driver: bridge
