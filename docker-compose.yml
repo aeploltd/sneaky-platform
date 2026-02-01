@@ -5,9 +5,9 @@ services:
     image: postgres:15-alpine
     container_name: sneaky-postgres
     environment:
-      POSTGRES_DB: sneaky_hosting
-      POSTGRES_USER: sneaky_admin
-      POSTGRES_PASSWORD: sneaky_secure_2024
+      POSTGRES_DB: ${POSTGRES_DB:-sneaky_hosting}
+      POSTGRES_USER: ${POSTGRES_USER:-sneaky_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sneaky_secure_2024}
     ports:
       - "5432:5432"
     volumes:
@@ -15,16 +15,19 @@ services:
       - ./sneaky-database/init:/docker-entrypoint-initdb.d
     networks:
       - sneaky-network
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
     container_name: sneaky-redis
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-sneaky_redis_2024}
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
     networks:
       - sneaky-network
+    restart: unless-stopped
 
   backend:
     build:
@@ -32,21 +35,37 @@ services:
       dockerfile: Dockerfile
     container_name: sneaky-backend
     environment:
-      NODE_ENV: development
-      DATABASE_URL: postgresql://sneaky_admin:sneaky_secure_2024@postgres:5432/sneaky_hosting
-      REDIS_URL: redis://redis:6379
-      JWT_SECRET: your-super-secret-jwt-key-change-in-production
-      PORT: 3001
+      NODE_ENV: ${NODE_ENV:-production}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      PORT: ${PORT:-3001}
+      FRONTEND_URL: ${FRONTEND_URL}
+      EMAIL_HOST: ${EMAIL_HOST}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_USER: ${EMAIL_USER}
+      EMAIL_PASSWORD: ${EMAIL_PASSWORD}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+      METRICS_INTERVAL: ${METRICS_INTERVAL:-30000}
+      CPU_ALERT_THRESHOLD: ${CPU_ALERT_THRESHOLD:-80}
+      MEMORY_ALERT_THRESHOLD: ${MEMORY_ALERT_THRESHOLD:-85}
+      DISK_ALERT_THRESHOLD: ${DISK_ALERT_THRESHOLD:-90}
     ports:
       - "3001:3001"
     depends_on:
       - postgres
       - redis
     volumes:
-      - ./sneaky-backend:/app
-      - /app/node_modules
+      - ./logs:/app/logs
     networks:
       - sneaky-network
+    restart: unless-stopped
 
   frontend:
     build:
@@ -54,17 +73,15 @@ services:
       dockerfile: Dockerfile
     container_name: sneaky-frontend
     environment:
-      REACT_APP_API_URL: http://localhost:3001
-      REACT_APP_WS_URL: ws://localhost:3001
+      REACT_APP_API_URL: ${REACT_APP_API_URL}
+      REACT_APP_WS_URL: ${REACT_APP_WS_URL}
     ports:
       - "3000:3000"
     depends_on:
       - backend
-    volumes:
-      - ./sneaky-frontend:/app
-      - /app/node_modules
     networks:
       - sneaky-network
+    restart: unless-stopped
 
 volumes:
   postgres_data:
