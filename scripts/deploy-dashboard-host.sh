@@ -111,10 +111,18 @@ cd ..
 # Test database connection
 echo "🔍 Testing database connection..."
 cd sneaky-backend
+
+# Create temporary .env file for Prisma
+cat > .env << EOF
+DATABASE_URL=$DATABASE_URL
+EOF
+
 if npx prisma db pull --force; then
     echo "✅ Database connection successful"
+    rm .env
 else
     echo "❌ Database connection failed. Please check your database server and credentials."
+    rm .env
     exit 1
 fi
 cd ..
@@ -122,7 +130,14 @@ cd ..
 # Run database migrations
 echo "🗄️  Running database migrations..."
 cd sneaky-backend
+
+# Create temporary .env file for Prisma
+cat > .env << EOF
+DATABASE_URL=$DATABASE_URL
+EOF
+
 npx prisma migrate deploy
+rm .env
 cd ..
 
 # Build applications

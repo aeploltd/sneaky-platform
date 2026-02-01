@@ -17,6 +17,21 @@ fi
 command -v docker >/dev/null 2>&1 || { echo "❌ Docker is required but not installed. Aborting." >&2; exit 1; }
 command -v docker-compose >/dev/null 2>&1 || { echo "❌ Docker Compose is required but not installed. Aborting." >&2; exit 1; }
 
+# Stop any existing services first
+echo "🛑 Stopping any existing services..."
+docker-compose -f docker-compose.database-server.yml down 2>/dev/null || true
+
+# Clean up any existing containers
+docker rm -f sneaky-postgres sneaky-db-monitor postgres-exporter 2>/dev/null || true
+
+# Create package-lock.json if missing
+if [ ! -f "sneaky-database/package-lock.json" ]; then
+    echo "📦 Creating package-lock.json for database service..."
+    cd sneaky-database
+    npm install --package-lock-only 2>/dev/null || echo "Using existing dependencies"
+    cd ..
+fi
+
 # Get configuration from user
 read -p "Enter database password (or press Enter for default): " DB_PASSWORD
 DB_PASSWORD=${DB_PASSWORD:-sneaky_secure_2024}
@@ -60,6 +75,10 @@ mkdir -p logs
 # Pull required images
 echo "📦 Pulling Docker images..."
 docker-compose -f docker-compose.database-server.yml pull
+
+# Build services (this will handle the npm install)
+echo "🏗️  Building database services..."
+docker-compose -f docker-compose.database-server.yml --env-file .env.database build --no-cache
 
 # Start services
 echo "🚀 Starting database services..."
