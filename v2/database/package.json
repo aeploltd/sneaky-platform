@@ -1,0 +1,20 @@
+{
+  "name": "database",
+  "version": "2.0.0",
+  "description": "Database setup for Sneaky Hosting V2",
+  "main": "index.js",
+  "scripts": {
+    "migrate": "prisma migrate dev",
+    "generate": "prisma generate",
+    "studio": "prisma studio",
+    "seed": "ts-node seed.ts"
+  },
+  "dependencies": {
+    "prisma": "^5.7.1",
+    "@prisma/client": "^5.7.1"
+  },
+  "devDependencies": {
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  }
+}
